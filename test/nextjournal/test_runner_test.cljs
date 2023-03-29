@@ -1,11 +1,11 @@
-(ns cognitect.test-runner-test
+(ns nextjournal.test-runner-test
   (:require
-    [clojure.test :refer :all]
-    [cognitect.test-runner :as tr]))
+   [clojure.test :refer [are deftest]]
+   [nextjournal.test-runner :as tr]))
 
 (deftest ns-filters
   (are [ns-names ns-regexes available selected]
-    (= selected (filter (#'tr/ns-filter {:namespace ns-names :namespace-regex ns-regexes}) available))
+      (= selected (filter (#'tr/ns-filter {:namespace ns-names :namespace-regex ns-regexes}) available))
 
     ;; default settings (no -n / -r, use default for -r)
     nil nil nil []

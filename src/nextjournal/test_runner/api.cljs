@@ -1,7 +1,7 @@
 (ns cognitect.test-runner.api
   (:refer-clojure :exclude [test])
   (:require
-    [cognitect.test-runner :as tr]))
+   [nextjournal.test-runner :as tr]))
 
 (defn- do-test
   [{:keys [dirs nses patterns vars includes excludes]}]

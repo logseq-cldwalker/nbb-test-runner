@@ -1,6 +1,6 @@
-(ns cognitect.test-runner
-  (:require [clojure.tools.namespace.find :as find]
-            [clojure.java.io :as io]
+(ns nextjournal.test-runner
+  (:require ["glob$default" :as glob]
+            ["fs" :as fs]
             [clojure.test :as test]
             [clojure.tools.cli :as cli])
   (:refer-clojure :exclude [test]))
@@ -59,15 +59,36 @@
   (some (comp :test meta)
         (-> ns ns-publics vals)))
 
-(defn test
+(defn file->ns [file]
+  (let [first-form (read-string (str (fs/readFileSync file)))]
+    (when (= 'ns (first first-form))
+      (second first-form))))
+
+#_(map file->ns (glob-cljs "test"))
+
+(defn glob-cljs [dir]
+  (js->clj (glob/sync (str dir "/**/**.cljs"))))
+
+(defn find-nses [dirs]
+  (into (sorted-set)
+        (comp (mapcat glob-cljs)
+              (keep file->ns))
+        dirs))
+
+#_(find-nses #{"test" "src"})
+
+;; TODO: figure out why this require is needed
+;; it should be taken care of by the `(dorun (map require nses))` below
+(require 'nextjournal.test-runner-test
+         'nextjournal.test-runner.samples-test)
+
+(defn ^:async test
   [options]
   (let [dirs (or (:dir options)
                  #{"test"})
-        nses (->> dirs
-                  (map io/file)
-                  (mapcat find/find-namespaces-in-dir))
+        nses (find-nses dirs)
         nses (filter (ns-filter options) nses)]
-    (println (format "\nRunning tests in %s" dirs))
+    (println (str "\nRunning tests in " dirs))
     (dorun (map require nses))
     (try
       (filter-vars! nses (var-filter options))
@@ -120,12 +141,9 @@
       (do (doseq [e (:errors args)]
             (println e))
           (help args)
-          (System/exit 1))
+          (js/process.exit 1))
       (if (-> args :options :test-help)
         (help args)
         (try
           (let [{:keys [fail error]} (test (:options args))]
-            (System/exit (if (zero? (+ fail error)) 0 1)))
-          (finally
-            ;; Only called if `test` raises an exception
-            (shutdown-agents)))))))
+            (js/process.exit (if (zero? (+ fail error)) 0 1))))))))
