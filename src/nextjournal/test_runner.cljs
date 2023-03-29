@@ -1,8 +1,10 @@
 (ns nextjournal.test-runner
-  (:require ["glob$default" :as glob]
-            ["fs" :as fs]
+  (:require ["fs" :as fs]
+            ["glob$default" :as glob]
             [clojure.test :as test]
-            [clojure.tools.cli :as cli])
+            [clojure.tools.cli :as cli]
+            [nbb.core :refer [await]]
+            [promesa.core :as p])
   (:refer-clojure :exclude [test]))
 
 (defn- ns-filter
@@ -77,24 +79,21 @@
 
 #_(find-nses #{"test" "src"})
 
-;; TODO: figure out why this require is needed
-;; it should be taken care of by the `(dorun (map require nses))` below
-(require 'nextjournal.test-runner-test
-         'nextjournal.test-runner.samples-test)
-
-(defn ^:async test
+(defn test
   [options]
   (let [dirs (or (:dir options)
                  #{"test"})
         nses (find-nses dirs)
         nses (filter (ns-filter options) nses)]
     (println (str "\nRunning tests in " dirs))
-    (dorun (map require nses))
-    (try
-      (filter-vars! nses (var-filter options))
-      (apply test/run-tests (filter contains-tests? nses))
-      (finally
-        (restore-vars! nses)))))
+    (p/let [_ (apply require nses)]
+      (try
+        (filter-vars! nses (var-filter options))
+        (apply test/run-tests (filter contains-tests? nses))
+        (finally
+          (restore-vars! nses))))))
+
+
 
 (defn- parse-kw
   [^String s]
@@ -145,5 +144,5 @@
       (if (-> args :options :test-help)
         (help args)
         (try
-          (let [{:keys [fail error]} (test (:options args))]
+          (p/let [{:keys [fail error]} (test (:options args))]
             (js/process.exit (if (zero? (+ fail error)) 0 1))))))))
