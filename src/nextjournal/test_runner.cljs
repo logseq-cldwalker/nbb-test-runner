@@ -1,8 +1,9 @@
 (ns nextjournal.test-runner
   (:require ["fs" :as fs]
-            ["glob$default" :as glob]
+            ["path" :as path]
             [clojure.test :as test]
             [clojure.tools.cli :as cli]
+            [clojure.string :as str]
             [nbb.core :refer [await]]
             [promesa.core :as p])
   (:refer-clojure :exclude [test]))
@@ -68,8 +69,25 @@
 
 #_(map file->ns (glob-cljs "test"))
 
+(defn- get-dirs [path]
+  (->> (fs/readdirSync path)
+       (map #(path/join path %))
+       (filter #(.isDirectory (fs/statSync %)))))
+
+(defn- get-files [path]
+  (->> (fs/readdirSync path)
+       (map #(path/join path %))
+       (filter #(.isFile (fs/statSync %)))))
+
+(defn get-files-recursively [dir]
+  (let [dirs (get-dirs dir)]
+    (->> dirs
+         (map get-files-recursively)
+         (reduce concat)
+         (concat (get-files dir)))))
+
 (defn glob-cljs [dir]
-  (js->clj (glob/sync (str dir "/**/**.cljs"))))
+  (filter #(str/ends-with? % ".cljs") (get-files-recursively dir)))
 
 (defn find-nses [dirs]
   (into (sorted-set)
@@ -132,6 +150,10 @@
   (println "\nAll options may be repeated multiple times for a logical OR effect.")
   (println "If neither -n nor -r is supplied, use -r #\".*-test$\" (ns'es ending in '-test')"))
 
+(defmethod test/report [:cljs.test/default :end-run-tests] [m]
+  (when-not (test/successful? m)
+    (set! (.-exitCode js/process) 1)))
+
 (defn -main
   "Entry point for the test runner"
   [& args]
@@ -143,6 +165,4 @@
           (js/process.exit 1))
       (if (-> args :options :test-help)
         (help args)
-        (try
-          (p/let [{:keys [fail error]} (test (:options args))]
-            (js/process.exit (if (zero? (+ fail error)) 0 1))))))))
+        (test (:options args))))))
