@@ -166,3 +166,5 @@
       (if (-> args :options :test-help)
         (help args)
         (test (:options args))))))
+
+#js {:main -main}
